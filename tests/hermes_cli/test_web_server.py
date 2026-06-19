@@ -1182,6 +1182,22 @@ class TestWebServerEndpoints:
         # Should contain known env var names
         assert any(k.endswith("_API_KEY") or k.endswith("_TOKEN") for k in data.keys())
 
+    def test_set_custom_env_var_is_listed_in_env_keys(self):
+        key = "CUSTOM_DASHBOARD_KEY"
+        value = "custom-value-1234"
+        assert key not in OPTIONAL_ENV_VARS
+
+        put_resp = self.client.put("/api/env", json={"key": key, "value": value})
+        assert put_resp.status_code == 200
+
+        get_resp = self.client.get("/api/env")
+        assert get_resp.status_code == 200
+        data = get_resp.json()
+        assert key in data
+        assert data[key]["is_set"] is True
+        assert data[key]["description"] == "Custom key from .env"
+        assert data[key]["channel_managed"] is False
+
     def test_get_env_vars_marks_channel_managed_keys(self):
         from hermes_cli.web_server import _channel_managed_env_keys
 

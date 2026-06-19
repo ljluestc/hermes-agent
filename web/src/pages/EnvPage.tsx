@@ -491,6 +491,9 @@ export default function EnvPage() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyValue, setNewKeyValue] = useState("");
+  const [creating, setCreating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(true); // Show all providers by default
   const { toast, showToast } = useToast();
   const { t } = useI18n();
@@ -591,6 +594,68 @@ export default function EnvPage() {
       showToast(`${t.config.failedToSave} ${key}: ${e}`, "error");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handleCreateKey = async () => {
+    const key = newKeyName.trim();
+    const value = newKeyValue;
+    if (!key) {
+      showToast("Enter a key name first", "error");
+      return;
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      showToast(`Invalid key name: ${key}`, "error");
+      return;
+    }
+    if (!value) {
+      showToast(t.env.enterValue, "error");
+      return;
+    }
+    if (vars?.[key]?.channel_managed) {
+      showToast("This key is managed on the Channels page", "error");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await api.setEnvVar(key, value);
+      const isProviderLike =
+        key.endsWith("_API_KEY") ||
+        key.endsWith("_TOKEN") ||
+        key.endsWith("_BASE_URL");
+      const isPasswordLike =
+        key.endsWith("_API_KEY") ||
+        key.endsWith("_TOKEN") ||
+        key.endsWith("_SECRET") ||
+        key.endsWith("_PASSWORD");
+      setVars((prev) =>
+        prev
+          ? {
+              ...prev,
+              [key]: {
+                description: prev[key]?.description ?? "Custom key from .env",
+                url: prev[key]?.url ?? null,
+                category:
+                  prev[key]?.category ??
+                  (isProviderLike ? "provider" : "tool"),
+                is_password: prev[key]?.is_password ?? isPasswordLike,
+                tools: prev[key]?.tools ?? [],
+                advanced: prev[key]?.advanced ?? false,
+                channel_managed: prev[key]?.channel_managed ?? false,
+                is_set: true,
+                redacted_value: value.slice(0, 4) + "..." + value.slice(-4),
+              },
+            }
+          : prev,
+      );
+      setNewKeyName("");
+      setNewKeyValue("");
+      showToast(`${key} ${t.common.save.toLowerCase()}d`, "success");
+    } catch (e) {
+      showToast(`${t.config.failedToSave} ${key}: ${e}`, "error");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -769,6 +834,55 @@ export default function EnvPage() {
           {showAdvanced ? t.env.hideAdvanced : t.env.showAdvanced}
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="border-b border-border bg-card">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">{t.common.create} key</CardTitle>
+          </div>
+          <CardDescription>
+            Add a new entry to <code>~/.hermes/.env</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <form
+            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleCreateKey();
+            }}
+          >
+            <div className="grid gap-1.5">
+              <Label className="font-mono-ui text-xs">Key name</Label>
+              <Input
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="EXAMPLE_API_KEY"
+                className="font-mono-ui text-xs"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">{t.common.set} value</Label>
+              <Input
+                type="text"
+                value={newKeyValue}
+                onChange={(e) => setNewKeyValue(e.target.value)}
+                placeholder={t.env.enterValue}
+                className="font-mono-ui text-xs"
+              />
+            </div>
+            <Button
+              type="submit"
+              prefix={<Save />}
+              disabled={creating || !newKeyName.trim() || !newKeyValue}
+            >
+              {creating ? "..." : t.common.create}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <div id="section-oauth">
         <OAuthProvidersCard

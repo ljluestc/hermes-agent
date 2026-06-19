@@ -3764,6 +3764,36 @@ async def get_env_vars(profile: Optional[str] = None):
             # avoid duplicating the (richer) Channels configuration UI.
             "channel_managed": var_name in channel_keys,
         }
+    # Also surface custom keys already present in .env so newly added keys from
+    # the dashboard remain visible/editable after reload, even when they are
+    # not part of OPTIONAL_ENV_VARS.
+    for var_name in sorted(env_on_disk.keys()):
+        if var_name in result:
+            continue
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", var_name):
+            continue
+        is_provider_like = (
+            var_name.endswith("_API_KEY")
+            or var_name.endswith("_TOKEN")
+            or var_name.endswith("_BASE_URL")
+        )
+        value = env_on_disk.get(var_name)
+        result[var_name] = {
+            "is_set": bool(value),
+            "redacted_value": redact_key(value) if value else None,
+            "description": "Custom key from .env",
+            "url": None,
+            "category": "provider" if is_provider_like else "tool",
+            "is_password": bool(
+                var_name.endswith("_API_KEY")
+                or var_name.endswith("_TOKEN")
+                or var_name.endswith("_SECRET")
+                or var_name.endswith("_PASSWORD")
+            ),
+            "tools": [],
+            "advanced": False,
+            "channel_managed": var_name in channel_keys,
+        }
     return result
 
 
