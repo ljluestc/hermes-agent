@@ -234,8 +234,21 @@ def _sanitize_subprocess_env(base_env: dict | None, extra_env: dict | None = Non
 
 
 def _find_bash() -> str:
-    """Find bash for command execution."""
+    """Find a compatible shell for local command execution.
+
+    On POSIX, prefer the user's configured login shell when it's one of the
+    shells we support for the snapshot/wrapper flow (bash, zsh). This keeps
+    command lookup semantics (PATH + shell startup files) aligned with the
+    user's real terminal, which avoids local/backend mismatches where the same
+    command resolves to different binaries between Hermes and the user's shell.
+    """
     if not _IS_WINDOWS:
+        preferred_shell = os.environ.get("SHELL", "")
+        if preferred_shell:
+            preferred_shell = os.path.expanduser(preferred_shell)
+            preferred_name = Path(preferred_shell).name.lower()
+            if preferred_name in {"bash", "zsh"} and os.path.isfile(preferred_shell):
+                return preferred_shell
         return (
             shutil.which("bash")
             or ("/usr/bin/bash" if os.path.isfile("/usr/bin/bash") else None)
