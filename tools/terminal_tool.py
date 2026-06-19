@@ -2432,9 +2432,11 @@ def terminal_tool(
             from tools.ansi_strip import strip_ansi
             output = strip_ansi(output)
 
-            # Redact secrets from command output (catches env/printenv leaking keys)
+            # Redact secrets from command output (catches env/printenv leaking keys).
+            # Preserve original leading/trailing whitespace and trailing newlines so
+            # foreground output stays byte-faithful to the underlying shell command.
             from agent.redact import redact_sensitive_text
-            output = redact_sensitive_text(output.strip()) if output else ""
+            output = redact_sensitive_text(output) if output else ""
 
             # Interpret non-zero exit codes that aren't real errors
             # (e.g. grep=1 means "no matches", diff=1 means "files differ")

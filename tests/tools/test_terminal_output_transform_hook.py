@@ -114,7 +114,7 @@ def test_terminal_output_transform_still_truncates_long_replacement(monkeypatch,
     assert transformed_output != result["output"]
 
 
-def test_terminal_output_transform_still_runs_strip_and_redact(monkeypatch, tmp_path):
+def test_terminal_output_transform_still_runs_ansi_strip_and_redact(monkeypatch, tmp_path):
     # Ensure redaction is active regardless of host HERMES_REDACT_SECRETS state
     # or collection-time import order (the module snapshots env at import).
     monkeypatch.setattr("agent.redact._REDACT_ENABLED", True)
@@ -131,6 +131,16 @@ def test_terminal_output_transform_still_runs_strip_and_redact(monkeypatch, tmp_
     assert secret not in result["output"]
     assert "OPENAI_API_KEY=" in result["output"]
     assert "***" in result["output"]
+
+
+def test_terminal_output_preserves_trailing_newline(monkeypatch, tmp_path):
+    result, _mock_env = _run_terminal(
+        monkeypatch,
+        tmp_path,
+        output="no crontab for calelin\n",
+    )
+
+    assert result["output"] == "no crontab for calelin\n"
 
 
 def test_terminal_output_transform_hook_exception_falls_back(monkeypatch, tmp_path):
