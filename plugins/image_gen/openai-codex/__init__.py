@@ -76,8 +76,19 @@ _SIZES = {
 _CODEX_CHAT_MODEL = "gpt-5.5"
 _CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 _CODEX_INSTRUCTIONS = (
-    "You are an assistant that must fulfill image generation requests by "
-    "using the image_generation tool when provided."
+    "You are an assistant that fulfills image generation requests by calling "
+    "the image_generation tool. Follow these rules strictly:\n"
+    "1. Call the image_generation tool exactly once per request.\n"
+    "2. Preserve all named characters, proper nouns, and fictional entities "
+    "from the user's prompt verbatim — do NOT substitute, rename, or invent "
+    "new characters. If the user asks for a named character (e.g. from an "
+    "anime, game, or other IP), use that exact character identity in the tool "
+    "call.\n"
+    "3. If the prompt is in a non-English language, translate and expand it "
+    "into a detailed English image_generation prompt while preserving every "
+    "named entity from the original language.\n"
+    "4. Do not add fictional organizations, invented names, or original "
+    "characters that were not in the user's request."
 )
 
 
