@@ -18,6 +18,7 @@ import {
 } from '../lib/text.js'
 import type { Theme } from '../theme.js'
 import type { ActiveTool, DetailsMode, Msg, SectionVisibility } from '../types.js'
+import { Chevron } from './collapsible.js'
 
 import { Md } from './markdown.js'
 import { StreamingMd } from './streamingMarkdown.js'
@@ -142,14 +143,16 @@ export const MessageLine = memo(function MessageLine({
 
       return (
         <Box flexDirection="column">
-          <Box onClick={() => setSystemOpen(v => !v)}>
-            <Text color={t.color.accent}>{systemOpen ? '▾ ' : '▸ '}</Text>
-            <Text color={t.color.muted}>{firstLine}</Text>
-            <Text color={t.color.muted} dimColor>
-              {' — '}
-              {msg.text.length.toLocaleString()} chars
-            </Text>
-          </Box>
+          <Chevron
+            baseColor={t.color.muted}
+            onToggle={() => setSystemOpen(v => !v)}
+            open={systemOpen}
+            suffix={`— ${msg.text.length.toLocaleString()} chars`}
+            suffixColor={t.color.muted}
+            suffixDim
+            t={t}
+            title={firstLine}
+          />
           {systemOpen && <Ansi>{sanitizeAnsiForRender(msg.text)}</Ansi>}
         </Box>
       )

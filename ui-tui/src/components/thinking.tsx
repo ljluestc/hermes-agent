@@ -37,6 +37,7 @@ import type {
   SubagentProgress,
   ThinkingMode
 } from '../types.js'
+import { Chevron } from './collapsible.js'
 
 const THINK: BrailleSpinnerName[] = ['helix', 'breathe', 'orbit', 'dna', 'waverows', 'snake', 'pulse']
 const TOOL: BrailleSpinnerName[] = ['cascade', 'scan', 'diagswipe', 'fillsweep', 'rain', 'columns', 'sparkle']
@@ -229,41 +230,6 @@ function StreamCursor({
   )
 }
 
-function Chevron({
-  count,
-  onClick,
-  open,
-  suffix,
-  t,
-  title,
-  tone = 'dim'
-}: {
-  count?: number
-  onClick: (deep?: boolean) => void
-  open: boolean
-  suffix?: string
-  t: Theme
-  title: string
-  tone?: 'dim' | 'error' | 'warn'
-}) {
-  const color = tone === 'error' ? t.color.error : tone === 'warn' ? t.color.warn : t.color.muted
-
-  return (
-    <Box onClick={(e: any) => onClick(!!e?.shiftKey || !!e?.ctrlKey)}>
-      <Text color={color} dim={tone === 'dim'}>
-        <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
-        {title}
-        {typeof count === 'number' ? ` (${count})` : ''}
-        {suffix ? (
-          <Text color={t.color.statusFg} dim>
-            {'  '}
-            {suffix}
-          </Text>
-        ) : null}
-      </Text>
-    </Box>
-  )
-}
 
 function heatColor(node: SubagentNode, peak: number, theme: Theme): string | undefined {
   const palette = [theme.color.border, theme.color.accent, theme.color.primary, theme.color.warn, theme.color.error]
@@ -332,6 +298,7 @@ function SubagentAccordion({
       : item.status === 'interrupted' || item.status === 'timeout'
         ? 'warn'
         : 'dim'
+  const statusColor = statusTone === 'error' ? t.color.error : statusTone === 'warn' ? t.color.warn : t.color.muted
 
   const prefix = item.taskCount > 1 ? `[${item.index + 1}/${item.taskCount}] ` : ''
   const goalLabel = item.goal || `Subagent ${item.index + 1}`
@@ -412,7 +379,11 @@ function SubagentAccordion({
       header: (
         <Chevron
           count={item.thinking.length}
-          onClick={shift => {
+          baseColor={t.color.muted}
+          baseDim
+          countColor={t.color.muted}
+          countDim
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -445,7 +416,11 @@ function SubagentAccordion({
       header: (
         <Chevron
           count={item.tools.length}
-          onClick={shift => {
+          baseColor={t.color.muted}
+          baseDim
+          countColor={t.color.muted}
+          countDim
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -486,7 +461,11 @@ function SubagentAccordion({
       header: (
         <Chevron
           count={noteRows.length}
-          onClick={shift => {
+          baseColor={statusColor}
+          baseDim={statusTone === 'dim'}
+          countColor={statusColor}
+          countDim={statusTone === 'dim'}
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -496,7 +475,6 @@ function SubagentAccordion({
           open={openNotes}
           t={t}
           title="Progress"
-          tone={statusTone}
         />
       ),
       key: 'notes',
@@ -526,7 +504,11 @@ function SubagentAccordion({
       header: (
         <Chevron
           count={children.length}
-          onClick={shift => {
+          baseColor={t.color.muted}
+          baseDim
+          countColor={t.color.muted}
+          countDim
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -534,6 +516,9 @@ function SubagentAccordion({
             }
           }}
           open={openKids}
+          suffixColor={t.color.statusFg}
+          suffixDim
+          suffixSpacing="double"
           suffix={`d${item.depth + 1} · ${aggregate.descendantCount} total`}
           t={t}
           title="Spawned"
@@ -568,7 +553,9 @@ function SubagentAccordion({
       branch={branch}
       header={
         <Chevron
-          onClick={shift => {
+          baseColor={statusColor}
+          baseDim={statusTone === 'dim'}
+          onToggle={shift => {
             if (shift) {
               expandAll()
 
@@ -584,10 +571,12 @@ function SubagentAccordion({
             })
           }}
           open={open}
+          suffixColor={t.color.statusFg}
+          suffixDim
+          suffixSpacing="double"
           suffix={suffix}
           t={t}
           title={title}
-          tone={statusTone}
         />
       }
       open={open}
@@ -1052,7 +1041,11 @@ export const ToolTrail = memo(function ToolTrail({
       header: (
         <Chevron
           count={groups.length}
-          onClick={shift => {
+          baseColor={t.color.muted}
+          baseDim
+          countColor={t.color.muted}
+          countDim
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -1060,6 +1053,9 @@ export const ToolTrail = memo(function ToolTrail({
             }
           }}
           open={openTools}
+          suffixColor={t.color.statusFg}
+          suffixDim
+          suffixSpacing="double"
           suffix={toolTokensLabel}
           t={t}
           title="Tool calls"
@@ -1124,7 +1120,11 @@ export const ToolTrail = memo(function ToolTrail({
       header: (
         <Chevron
           count={spawnTotals.descendantCount}
-          onClick={shift => {
+          baseColor={t.color.muted}
+          baseDim
+          countColor={t.color.muted}
+          countDim
+          onToggle={shift => {
             if (shift) {
               expandAll()
               setDeepSubagents(true)
@@ -1134,6 +1134,9 @@ export const ToolTrail = memo(function ToolTrail({
             }
           }}
           open={openSubagents}
+          suffixColor={t.color.statusFg}
+          suffixDim
+          suffixSpacing="double"
           suffix={suffix}
           t={t}
           title="Spawn tree"
@@ -1150,7 +1153,11 @@ export const ToolTrail = memo(function ToolTrail({
       header: (
         <Chevron
           count={meta.length}
-          onClick={shift => {
+          baseColor={metaTone === 'error' ? t.color.error : metaTone === 'warn' ? t.color.warn : t.color.muted}
+          baseDim={metaTone === 'dim'}
+          countColor={metaTone === 'error' ? t.color.error : metaTone === 'warn' ? t.color.warn : t.color.muted}
+          countDim={metaTone === 'dim'}
+          onToggle={shift => {
             if (shift) {
               expandAll()
             } else {
@@ -1160,7 +1167,6 @@ export const ToolTrail = memo(function ToolTrail({
           open={openMeta}
           t={t}
           title="Activity"
-          tone={metaTone}
         />
       ),
       key: 'meta',

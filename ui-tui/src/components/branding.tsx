@@ -6,6 +6,7 @@ import { artWidth, caduceus, CADUCEUS_WIDTH, logo, LOGO_WIDTH } from '../banner.
 import { flat } from '../lib/text.js'
 import type { Theme } from '../theme.js'
 import type { PanelSection, SessionInfo } from '../types.js'
+import { Chevron } from './collapsible.js'
 
 const LOADER_TICK_MS = 120
 
@@ -119,38 +120,6 @@ export function Banner({ maxWidth, t }: { maxWidth?: number; t: Theme }) {
   )
 }
 
-// ── Collapsible helpers ──────────────────────────────────────────────
-
-function CollapseToggle({
-  count,
-  open,
-  suffix,
-  t,
-  title,
-  onToggle
-}: {
-  count?: number
-  open: boolean
-  suffix?: string
-  t: Theme
-  title: string
-  onToggle: () => void
-}) {
-  return (
-    <Box onClick={onToggle}>
-      <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
-      <Text bold color={t.color.accent}>
-        {title}
-      </Text>
-      {typeof count === 'number' ? (
-        <Text color={t.color.muted}> ({count})</Text>
-      ) : null}
-      {suffix ? (
-        <Text color={t.color.muted}> {suffix}</Text>
-      ) : null}
-    </Box>
-  )
-}
 
 // ── SessionPanel ─────────────────────────────────────────────────────
 
@@ -345,7 +314,10 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
 
         {/* ── Tools (expanded by default) ── */}
         <Box flexDirection="column" marginTop={1}>
-          <CollapseToggle
+          <Chevron
+            baseColor={t.color.accent}
+            bold
+            countColor={t.color.muted}
             onToggle={() => setToolsOpen(v => !v)}
             open={toolsOpen}
             t={t}
@@ -356,10 +328,14 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
 
         {/* ── Skills (collapsed by default) ── */}
         <Box flexDirection="column" marginTop={1}>
-          <CollapseToggle
+          <Chevron
+            baseColor={t.color.accent}
+            bold
             count={skillsTotal}
+            countColor={t.color.muted}
             onToggle={() => setSkillsOpen(v => !v)}
             open={skillsOpen}
+            suffixColor={t.color.muted}
             suffix={skillsCatCount > 0 ? `in ${skillsCatCount} categor${skillsCatCount === 1 ? 'y' : 'ies'}` : undefined}
             t={t}
             title="Available Skills"
@@ -370,9 +346,12 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
         {/* ── System Prompt (collapsed by default) ── */}
         {sysPromptLen > 0 && (
           <Box flexDirection="column" marginTop={1}>
-            <CollapseToggle
+            <Chevron
+              baseColor={t.color.accent}
+              bold
               onToggle={() => setSystemOpen(v => !v)}
               open={systemOpen}
+              suffixColor={t.color.muted}
               suffix={`— ${sysPromptLen.toLocaleString()} chars`}
               t={t}
               title="System Prompt"
@@ -384,10 +363,14 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
         {/* ── MCP Servers (collapsed by default) ── */}
         {mcpServers.length > 0 && (
           <Box flexDirection="column" marginTop={1}>
-            <CollapseToggle
+            <Chevron
+              baseColor={t.color.accent}
+              bold
               count={mcpConnected}
+              countColor={t.color.muted}
               onToggle={() => setMcpOpen(v => !v)}
               open={mcpOpen}
+              suffixColor={t.color.muted}
               suffix="connected"
               t={t}
               title="MCP Servers"
