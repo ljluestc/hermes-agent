@@ -1430,12 +1430,12 @@ describe('branchStoredSession desktop source tagging', () => {
     expect(branchParams).toEqual({ session_id: 'live-parent', count: 2 })
   })
 
-  it('hydrates the complete persisted display transcript before branching a compacted live chat', async () => {
-    let branchParams: Record<string, unknown> | undefined
+  it('creates a compacted live chat branch from the full persisted display transcript (bug #87949)', async () => {
+    let createParams: Record<string, unknown> | undefined
 
     const requestGateway = vi.fn(async (method: string, params?: Record<string, unknown>) => {
-      if (method === 'session.branch') {
-        branchParams = params
+      if (method === 'session.create') {
+        createParams = params
 
         return {
           session_id: 'branch-runtime',
@@ -1481,7 +1481,22 @@ describe('branchStoredSession desktop source tagging', () => {
     await expect(branchCurrentSession!()).resolves.toBe(true)
 
     expect(getAllSessionMessages).toHaveBeenCalledWith('stored-parent', undefined)
-    expect(branchParams).toEqual({ session_id: 'live-parent' })
+    expect(requestGateway).not.toHaveBeenCalledWith('session.branch', expect.anything())
+    expect(requestGateway).toHaveBeenCalledWith(
+      'session.create',
+      expect.objectContaining({
+        parent_session_id: 'stored-parent',
+        source: 'desktop',
+        messages: [
+          { content: 'first question', role: 'user' },
+          { content: 'first answer', role: 'assistant' },
+          { content: 'second question', role: 'user' },
+          { content: 'second answer', role: 'assistant' }
+        ]
+      })
+    )
+    expect(createParams).toBeDefined()
+    expect(createParams).not.toHaveProperty('count')
   })
 
   it('aborts if the active runtime changes while the branch transcript is hydrating', async () => {
@@ -1516,6 +1531,7 @@ describe('branchStoredSession desktop source tagging', () => {
     await waitFor(() => expect(branchCurrentSession).not.toBeNull())
 
     await expect(branchCurrentSession!()).resolves.toBe(false)
+    expect(requestGateway).not.toHaveBeenCalledWith('session.create', expect.anything())
     expect(requestGateway).not.toHaveBeenCalledWith('session.branch', expect.anything())
   })
 

@@ -1545,16 +1545,22 @@ export function useSessionActions({
 
       clearNotifications()
 
+      // When the persisted transcript is available, create the branch directly
+      // from that full display projection, just like branchStoredSession. This
+      // keeps the two branch entry points consistent and avoids session.branch
+      // reading the live compacted runtime projection (#87949).
+      const useAuthoritativeCreate = storedSessionId && authoritativeMessages && authoritativeMessages.length > 0
+
       // The open chat's owning profile, NOT the picker's / launch profile —
       // /profile only retargets new chats, so a branch of an existing thread
       // must stay on that thread's backend (cache hit for an open session).
       return forkBranch(
         branchMessages,
-        startingActiveSessionId,
+        useAuthoritativeCreate ? null : startingActiveSessionId,
         storedSessionId,
         startingCwd,
         profile,
-        messageId ? branchMessages.length : undefined
+        useAuthoritativeCreate ? undefined : messageId ? branchMessages.length : undefined
       )
     },
     [activeSessionIdRef, busyRef, copy, forkBranch, getRouteToken, selectedStoredSessionIdRef]

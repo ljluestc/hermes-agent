@@ -308,6 +308,28 @@ describe('selectBranchMessages', () => {
       'latest answer'
     ])
   })
+
+  it('falls back to the full authoritative transcript when the clicked bubble cannot be mapped', () => {
+    const local = [
+      msg('summary', 'assistant', 'compact summary'),
+      msg('tail-user', 'user', 'latest question', { rowId: 13 }),
+      msg('tail-assistant', 'assistant', 'latest answer', { rowId: 14 })
+    ]
+
+    const authoritative = [
+      msg('old-user', 'user', 'first question', { rowId: 11 }),
+      msg('old-assistant', 'assistant', 'first answer', { rowId: 12 }),
+      msg('tail-user', 'user', 'latest question', { rowId: 13 }),
+      msg('tail-assistant', 'assistant', 'latest answer', { rowId: 14 })
+    ]
+
+    expect(selectBranchMessages(local, authoritative, 'summary').map(message => message.content)).toEqual([
+      'first question',
+      'first answer',
+      'latest question',
+      'latest answer'
+    ])
+  })
 })
 
 describe('chatPartsEquivalent', () => {

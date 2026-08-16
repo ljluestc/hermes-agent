@@ -1159,10 +1159,11 @@ export const toBranchMessages = (messages: ChatMessage[]): BranchMessage[] =>
  *
  * The local renderer can hold a compacted model projection, while the REST
  * transcript contains the complete display projection. Use the latter for a
- * whole-chat branch. When branching from a clicked bubble, map that bubble by
- * durable row id first and by same-role/text ordinal as a legacy fallback; if
- * it cannot be mapped, keep the local prefix rather than silently choosing a
- * different point in the conversation.
+ * whole-chat branch and as the safe fallback when a clicked bubble cannot be
+ * mapped. When branching from a clicked bubble, map that bubble by durable row id
+ * first and by same-role/text ordinal as a legacy fallback; if it cannot be
+ * mapped, return the full authoritative transcript rather than the compacted
+ * local prefix, so the branch never inherits a truncated or offset summary.
  */
 export function selectBranchMessages(
   localMessages: ChatMessage[],
@@ -1180,7 +1181,7 @@ export function selectBranchMessages(
   }
 
   if (localIndex < 0) {
-    return toBranchMessages(localMessages)
+    return toBranchMessages(authoritativeMessages)
   }
 
   const target = localMessages[localIndex]
@@ -1219,7 +1220,7 @@ export function selectBranchMessages(
   }
 
   if (authoritativeIndex < 0) {
-    return toBranchMessages(localMessages.slice(0, localIndex + 1))
+    return toBranchMessages(authoritativeMessages)
   }
 
   return toBranchMessages(authoritativeMessages.slice(0, authoritativeIndex + 1))
