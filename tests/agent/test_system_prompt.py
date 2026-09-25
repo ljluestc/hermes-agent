@@ -107,6 +107,16 @@ def test_kanban_guidance_fallback_requires_owned_worker_task(monkeypatch, task_i
         assert (_tool_guidance_block(agent) == KANBAN_GUIDANCE) is expected
 
 
+@pytest.mark.parametrize("tools, expected", [({"terminal"}, True), ({"read_file", "web_search"}, False)])
+def test_privilege_escalation_guidance_follows_terminal_tool(tools, expected):
+    """Sessions that can run shell commands carry the sudoers/NOPASSWD rule (#15028);
+    sessions without a terminal don't pay for it in every cached prompt."""
+    from agent.prompt_builder import PRIVILEGE_ESCALATION_GUIDANCE
+
+    prompt = build_system_prompt(_make_agent(valid_tool_names=tools))
+    assert (PRIVILEGE_ESCALATION_GUIDANCE in prompt) is expected
+
+
 @pytest.mark.parametrize("stores", [(True, True), (False, True), (True, False), (False, False)])
 @pytest.mark.parametrize("names", [
     set(), {"memory"}, {"memory", "skill_view", "skills_list"},

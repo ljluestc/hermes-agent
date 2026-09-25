@@ -235,6 +235,18 @@ def build_memory_guidance(
 MEMORY_GUIDANCE = build_memory_guidance(True, True)
 USER_PROFILE_GUIDANCE = build_memory_guidance(False, True)
 
+# Terminal-only (#15028): the model called `NOPASSWD: /usr/bin/curl` "relatively safe" while setting up a
+# root cron download. Any NOPASSWD rule for a program that can write an arbitrary path or spawn a shell is
+# root for whoever holds the account. Ships in every terminal session's cached prompt — keep tight.
+PRIVILEGE_ESCALATION_GUIDANCE = (
+    "When granting privileges (sudoers, NOPASSWD, setuid, polkit, doas), never call a rule safe or "
+    "restricted if the allowed program can write arbitrary paths, run other programs, or spawn a shell "
+    "(curl/wget -o, tee, cp, mv, dd, sed -i, vim, less, find, tar, rsync, python, bash, ...): "
+    "`NOPASSWD: /usr/bin/curl` equals full root. Say so plainly, and recommend a root-owned, "
+    "non-user-writable wrapper script with hardcoded arguments (or root's own crontab) as the sudoers "
+    "target instead."
+)
+
 SESSION_SEARCH_GUIDANCE = (
     "When the user references something from a past conversation or you suspect relevant cross-session "
     "context exists, use session_search to recall it before asking them to repeat themselves."
