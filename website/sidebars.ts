@@ -328,6 +328,7 @@ const sidebars: SidebarsConfig = {
                   key: 'skills-optional-autonomous-ai-agents',
                   collapsed: true,
                   items: [
+                    'user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-agent-interop-osi',
                     'user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-agent-merge-conflict-arbiter',
                     'user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-antigravity-cli',
                     'user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-blackbox',
