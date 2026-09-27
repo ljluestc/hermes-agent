@@ -6,10 +6,13 @@ run at picker time on multi-GB files.
 
 from __future__ import annotations
 
+import logging
 import re
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _GGUF_MAGIC = b"GGUF"
 
@@ -24,7 +27,9 @@ def model_id_from_stem(stem: str) -> str:
 
 
 # ggml tensor type sizes: type_id -> (block_bytes, block_elems). IQ-family verified against
-# ggml-common.h.
+# ggml-common.h. Necessarily incomplete: quant types keep arriving (MXFP4, and the 1.58-bit
+# ternary types a distribution may number outside upstream's range entirely), so a type missing
+# here is sized from the file's own tensor layout instead — see _offset_spans.
 _GGML_TYPE_SIZES = {
     0: (4, 1), 1: (2, 1), 2: (18, 32), 3: (20, 32), 6: (22, 32), 7: (24, 32),
     8: (34, 32), 9: (36, 32), 10: (84, 256), 11: (110, 256), 12: (144, 256),
@@ -34,6 +39,9 @@ _GGML_TYPE_SIZES = {
     26: (4, 1), 27: (8, 1), 28: (8, 1), 29: (56, 256), 30: (2, 1),
     39: (17, 32),  # MXFP4 — 32 elements per 17-byte block (gpt-oss family)
 }
+
+# Tensor data starts at the first general.alignment boundary after the tensor table.
+_DEFAULT_ALIGNMENT = 32
 
 # GGUF metadata value types -> struct format; STRING (8) and ARRAY (9) are variable-length.
 _V_STRING, _V_ARRAY = 8, 9
@@ -150,6 +158,22 @@ class GGUFHeader:
         return self.head_dim_k
 
 
+def _align_up(value: int, alignment: int) -> int:
+    return ((value + alignment - 1) // alignment) * alignment if alignment > 0 else value
+
+
+def _offset_spans(offsets: list[int], data_bytes: int) -> dict[int, int]:
+    """Bytes each tensor offset owns: up to the next offset, or to the end of the data section.
+
+    Sizes a tensor whose ggml type ``_GGML_TYPE_SIZES`` does not carry. The file's own layout is
+    exact (inter-tensor padding included) and cannot go stale as new quant types appear, so a
+    planner built on it stays correct for types this table has never heard of.
+    """
+    ordered = sorted(set(offsets))
+    next_offset = dict(zip(ordered, ordered[1:]))
+    return {off: max(next_offset.get(off, data_bytes) - off, 0) for off in ordered}
+
+
 def read_gguf_header(path: str | Path) -> GGUFHeader:
     path = Path(path)
 
@@ -179,25 +203,43 @@ def read_gguf_header(path: str | Path) -> GGUFHeader:
             (vtype,) = read(f, "<I")
             metadata[key] = read_value(f, vtype)
 
-        tensor_bytes = 0
-        embd_bytes = 0
+        # (name, type, data offset, bytes from the type table or None when the type is unknown)
+        infos: list[tuple[str, int, int, int | None]] = []
         for _ in range(n_tensors):
             name = read_str(f)
             (n_dims,) = read(f, "<I")
             dims = read(f, f"<{n_dims}Q")
             (ttype,) = read(f, "<I")
-            f.read(8)  # offset
+            (offset,) = read(f, "<Q")
+            nbytes = None
             size = _GGML_TYPE_SIZES.get(ttype)
-            if size is None:
-                raise ValueError(f"unknown ggml tensor type {ttype} in {path}")
-            block_bytes, block_elems = size
-            elems = 1
-            for d in dims:
-                elems *= d
-            nbytes = (elems // block_elems) * block_bytes
-            tensor_bytes += nbytes
-            if name == "token_embd.weight":
-                embd_bytes = nbytes
+            if size is not None:
+                block_bytes, block_elems = size
+                elems = 1
+                for d in dims:
+                    elems *= d
+                nbytes = (elems // block_elems) * block_bytes
+            infos.append((name, ttype, offset, nbytes))
+        table_end = f.tell()
+
+    alignment = int(metadata.get("general.alignment") or _DEFAULT_ALIGNMENT)
+    data_bytes = max(path.stat().st_size - _align_up(table_end, alignment), 0)
+    spans = _offset_spans([off for _, _, off, _ in infos], data_bytes)
+
+    tensor_bytes = 0
+    embd_bytes = 0
+    for name, ttype, offset, nbytes in infos:
+        if nbytes is None:
+            # Fail closed rather than price an unknown type at zero: a truncated download has no
+            # data section to measure, and a free-looking weight would buy a window that OOMs.
+            nbytes = spans[offset]
+            if nbytes <= 0:
+                raise ValueError(f"unsizeable ggml tensor type {ttype} in {path}")
+            logger.debug("sized %s (ggml type %d) from the tensor layout: %d bytes",
+                         name, ttype, nbytes)
+        tensor_bytes += nbytes
+        if name == "token_embd.weight":
+            embd_bytes = nbytes
 
     return GGUFHeader(path=str(path), version=version, metadata=metadata,
                       n_tensors=n_tensors, tensor_bytes=tensor_bytes,
