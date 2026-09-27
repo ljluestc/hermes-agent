@@ -148,7 +148,7 @@ from gateway.platforms.base import (
 # Every refused button tap answers with the same sentence.
 _UNAUTHORIZED = unauthorized_action_notice(Platform.TELEGRAM)
 
-from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
+from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome, VoiceMeta
 from plugins.platforms.telegram.telegram_entities import expand_link_entities
 from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id
 from plugins.platforms.telegram.telegram_network import (
@@ -6652,6 +6652,12 @@ class TelegramAdapter(BasePlatformAdapter):
                 cached_path = await cache_audio_from_bytes_async(bytes(data), ext=ext)
             event.media_urls = [cached_path]
             event.media_types = [mime]
+            if kind == "voice":
+                # Telegram states the clip length in the update; carrying it spares the gateway an
+                # ffprobe subprocess per voice note. Telegram has no server-side ASR, so no hint.
+                event.voice = VoiceMeta.build(
+                    duration_seconds=getattr(source, "duration", None),
+                    source_format=getattr(source, "mime_type", None) or mime)
             logger.info("[Telegram] Cached user %s at %s", kind, cached_path)
         except Exception as e:
             logger.warning("[Telegram] Failed to cache %s: %s", kind, _redact_telegram_error_text(e), exc_info=True)

@@ -269,7 +269,7 @@ from gateway.platforms.base import (
     cache_document_from_bytes_async, SUPPORTED_DOCUMENT_TYPES, _TEXT_INJECT_EXTENSIONS,
     _prefix_within_utf16_limit, utf16_len, validate_inbound_media_size,
 )
-from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
+from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome, VoiceMeta
 from tools.url_safety import is_safe_url
 from gateway.platforms._shared import (
     decode_json_list_literal as _decode_json_list_literal, env_is_connected as _env_is_connected,
@@ -4806,6 +4806,18 @@ class DiscordAdapter(DiscordMediaMixin, BasePlatformAdapter):
             return 32 * 1024 * 1024
         return max(0, value)
 
+    @classmethod
+    def _voice_meta_from_attachments(cls, attachments: list) -> "Optional[VoiceMeta]":
+        """Normalized metadata for the first native voice note among ``attachments``.
+
+        Discord puts ``duration`` (fractional seconds) and ``waveform`` on the attachment itself and
+        has no server-side ASR, so there is a duration but never a text hint."""
+        att = next((a for a in attachments if cls._is_discord_voice_message_attachment(a)), None)
+        if att is None:
+            return None
+        return VoiceMeta.build(duration_seconds=getattr(att, "duration", None),
+                               source_format=getattr(att, "content_type", None))
+
     @staticmethod
     def _is_discord_voice_message_attachment(att: Any) -> bool:
         """Return True when a Discord audio attachment is a native voice note."""
@@ -6134,6 +6146,7 @@ class DiscordAdapter(DiscordMediaMixin, BasePlatformAdapter):
             reply_to_message_id=reply_to_id, reply_to_text=reply_to_text,
             timestamp=message.created_at, auto_skill=_skills, channel_prompt=_channel_prompt,
             channel_context=_channel_context,
+            voice=self._voice_meta_from_attachments(all_attachments),
         )
         if (
             getattr(getattr(message, "author", None), "bot", False)

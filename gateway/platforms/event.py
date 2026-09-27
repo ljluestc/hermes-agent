@@ -4,6 +4,7 @@ A leaf module: adapters, helpers and the runner import it, so it must not import
 gateway.platforms.*.
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -30,6 +31,66 @@ class ProcessingOutcome(Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     CANCELLED = "cancelled"
+
+
+def _coerce_duration_ms(duration_ms: Any, duration_seconds: Any) -> Optional[int]:
+    """Whole positive milliseconds from whichever unit the platform reports; None when unusable.
+
+    ``bool`` is rejected explicitly — it is an ``int`` subclass, so a stray ``voice=True`` flag
+    would otherwise normalize to a 1-second clip.
+    """
+    for value, scale in ((duration_ms, 1), (duration_seconds, 1000)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            continue
+        if (ms := int(round(value * scale))) > 0:
+            return ms
+    return None
+
+
+def _normalize_source_format(value: Any) -> Optional[str]:
+    """Container/codec as a bare lowercase token: ``"audio/ogg"``, ``".OGG"``, ``"audio/x-m4a;
+    codecs=opus"`` all become ``"ogg"`` / ``"m4a"``. None when unusable."""
+    if not isinstance(value, str):
+        return None
+    text = value.split(";", 1)[0].strip().lower()
+    if "/" in text:
+        text = text.rsplit("/", 1)[-1]
+    return text.lstrip(".").removeprefix("x-") or None
+
+
+@dataclass(frozen=True)
+class VoiceMeta:
+    """Normalized inbound voice-message metadata — one shape for every adapter.
+
+    Platforms report the same few facts under different names and units: Telegram's
+    ``voice.duration`` is whole seconds, Matrix's ``info.duration`` is milliseconds, Discord's
+    ``attachment.duration`` is fractional seconds, and DingTalk's ``recognition`` / Weixin's
+    ``voice_item.text`` are the platform's OWN speech-to-text output. Adapters normalize once
+    through :meth:`build`; consumers read these fields and never branch on the platform.
+
+    ``text_hint`` is a hint, never a transcript. Native ASR is frequently wrong for audio outside
+    the platform's primary language (#27300: Russian audio came back as English gibberish), so
+    consumers must prefer Hermes's configured STT and fall back to the hint only when STT produced
+    no words. Anything beyond this shared subset stays in ``MessageEvent.metadata``.
+    """
+
+    text_hint: Optional[str] = None
+    duration_ms: Optional[int] = None
+    source_format: Optional[str] = None
+
+    @classmethod
+    def build(cls, *, text_hint: Any = None, duration_ms: Any = None,
+              duration_seconds: Any = None, source_format: Any = None) -> "Optional[VoiceMeta]":
+        """Coerce raw platform fields into a ``VoiceMeta``, or None when nothing usable survived.
+
+        Returning None (rather than an all-empty instance) lets an adapter assign unconditionally —
+        ``event.voice = VoiceMeta.build(...)`` — instead of each one re-deriving "is any of this
+        worth carrying?".
+        """
+        hint = text_hint.strip() if isinstance(text_hint, str) else None
+        ms = _coerce_duration_ms(duration_ms, duration_seconds)
+        fmt = _normalize_source_format(source_format)
+        return cls(text_hint=hint or None, duration_ms=ms, source_format=fmt) if (hint or ms or fmt) else None
 
 
 @dataclass
@@ -92,6 +153,11 @@ class MessageEvent:
     # knows the message was meant for someone else); None means unknown and keeps the visible
     # fallback, like True.
     reply_expected: Optional[bool] = None
+    # Normalized inbound voice-message metadata; None when the platform exposes none. The shared
+    # subset consumers may read without knowing the platform — adapter-specific extras stay in
+    # ``metadata``. Describes ONE clip, so consumers must ignore it once several have merged into
+    # one event (``merge_pending_message_event`` extends ``media_urls``).
+    voice: Optional[VoiceMeta] = None
 
     # Process-local admission receipt, never routing metadata or execution acknowledgement.
     _gateway_accepted: bool = field(default=False, init=False, repr=False, compare=False)

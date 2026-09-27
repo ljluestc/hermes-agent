@@ -165,6 +165,34 @@ def check_<platform>_requirements() -> bool:
 - Implement reconnection with exponential backoff + jitter for streaming connections
 - Set `MAX_MESSAGE_LENGTH` if the platform has message size limits
 
+### Inbound voice metadata (`MessageEvent.voice`)
+
+A voice message often arrives with more than audio: a clip length, a container/codec, and on some
+platforms the platform's own speech-to-text output. Normalize whatever the platform gives you into
+`VoiceMeta` and hand it over — do **not** invent event attributes, and do not inline a native
+transcript into `event.text`:
+
+```python
+from gateway.platforms.event import MessageEvent, MessageType, VoiceMeta
+
+event.voice = VoiceMeta.build(
+    text_hint=payload.get("recognition"),   # the PLATFORM's ASR, if it has one
+    duration_seconds=voice.duration,        # or duration_ms=... — either unit
+    source_format=voice.mime_type,          # "audio/ogg", ".ogg" and "ogg" all normalize
+)
+```
+
+`build()` coerces the units, strips the hint, reduces the format to a bare lowercase token, and
+returns `None` when nothing usable survived — so the assignment needs no `if`. Three rules:
+
+1. **Always download the audio anyway.** A native transcript is a *hint*, never the body. Platform
+   ASR is routinely wrong for audio outside the platform's primary language (#27300), so the
+   gateway's configured STT owns the transcript and the hint is used only when STT yields no words.
+2. **`voice` describes one clip.** `merge_pending_message_event` appends a second voice note to the
+   same event; consumers ignore `voice` once `media_urls` holds more than one clip.
+3. **Anything outside this subset goes in `event.metadata`.** `voice` is the shared shape downstream
+   code may read without knowing which platform produced it.
+
 ---
 
 ## 2. Platform Enum (`gateway/config.py`)

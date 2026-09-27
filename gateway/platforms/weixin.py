@@ -34,7 +34,7 @@ from gateway.platforms.base import (
     _IMAGE_EXTS, _VIDEO_EXTS, gateway_trust_env, BasePlatformAdapter, SendResult,
     cache_audio_from_bytes_async, cache_document_from_bytes_async, cache_image_from_bytes_async,
 )
-from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.event import MessageEvent, MessageType, VoiceMeta
 from hermes_constants import get_hermes_home
 from utils import atomic_json_write
 from gateway.platforms._shared import extra_or_secret as _extra_or_env, get_scoped_secret as _wx_secret
@@ -551,6 +551,24 @@ def _extract_text(item_list: List[Dict[str, Any]]) -> str:
     return ""
 
 
+def _extract_voice_meta(item_list: List[Dict[str, Any]]) -> "Optional[VoiceMeta]":
+    """Normalize the first voice item's Tencent-side transcript into ``MessageEvent.voice``.
+
+    ``voice_item.text`` is Tencent Cloud's own STT. It used to be dropped outright whenever raw
+    audio existed (#27300: for non-Chinese audio it comes back as gibberish, so the central STT
+    pipeline must own the body), which meant it was also unavailable in the one case where it is
+    genuinely the best answer left — Hermes's STT failing or being disabled. Carried as a hint it is
+    never preferred over a real transcript, only used when there is none.
+    """
+    for item in item_list:
+        if item.get("type") != ITEM_VOICE:
+            continue
+        voice_item = item.get("voice_item") or {}
+        if meta := VoiceMeta.build(text_hint=voice_item.get("text"), source_format="silk"):
+            return meta
+    return None
+
+
 _MIME_PREFIX_TYPES = (("image/", MessageType.PHOTO), ("video/", MessageType.VIDEO), ("audio/", MessageType.VOICE))
 
 
@@ -900,7 +918,8 @@ class WeixinAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         source = self.build_source(chat_id=effective_chat_id, chat_type=chat_type, user_id=sender_id, user_name=sender_id)
         event = MessageEvent(
             text=text, message_type=_message_type_from_media(media_types, text), source=source, raw_message=message,
-            message_id=message_id or None, media_urls=media_paths, media_types=media_types, timestamp=datetime.now())
+            message_id=message_id or None, media_urls=media_paths, media_types=media_types, timestamp=datetime.now(),
+            voice=_extract_voice_meta(item_list))
         logger.info("[%s] inbound from=%s type=%s media=%d", self.name, _safe_id(sender_id), source.chat_type, len(media_paths))
         if event.message_type == MessageType.TEXT:
             self._enqueue_text_event(event)
