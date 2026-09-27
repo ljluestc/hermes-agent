@@ -130,6 +130,43 @@ assertion gained `voice=None`; its subject (steer mode transcribes before inject
 this machine — it trips the real-`~/.hermes` I/O guard. Confirmed failing identically on unmodified
 `origin/main`; unrelated to this change.
 
+### A pre-existing spin-loop this PR kept tripping (second commit, separable)
+
+`test_kanban_wake_acceptance.py` was SIGKILLed at the runner's 300s per-file cap on three
+consecutive runs of this branch, turning a 130s suite into 349s. A faulthandler dump of the live
+process (state `Rsl`, 59s CPU in 71s wall — spinning, not deadlocked) pinned it to the file's own
+helper:
+
+```python
+async def drain(adapter):
+    while adapter._background_tasks:
+        await asyncio.gather(*list(adapter._background_tasks))
+```
+
+`_background_tasks` is emptied by `task.add_done_callback(self._background_tasks.discard)`
+(`platforms/base.py:3890`), which the loop runs via `call_soon` — so the set is still non-empty the
+instant `gather` returns on already-done tasks, and with no yield in the body the `while` re-gathers
+finished tasks forever without letting the discards run.
+
+It is **not caused by this change**, proven three ways:
+
+| Experiment | Files | Result | `kanban_wake_acceptance` |
+|---|---|---|---|
+| this branch's source, new test file held aside | 1012 | 9087 ✓ / 1 ✗, 128.3s | ✓ 5.4s |
+| clean `origin/main`, same targets | 1012 | 9087 ✓ / 1 ✗, 128.0s | ✓ 5.7s |
+| clean `origin/main` + one dummy test file | 1013 | 9088 ✓ / 1 ✗, 114.2s | ✓ 4.7s |
+| this branch as committed | 1013 | 9095 ✓ / 1 ✗, 349s | ✗ SIGKILL ×3 |
+
+Row 1 is decisive: with the feature code and no new test file the run is identical to base, so the
+source changes are clean. Row 3 rules out file count. The captured stack touches nothing in this
+diff. Adding any file perturbs `-j32` timing enough to tip the latent spin.
+
+The second commit adds the missing `await asyncio.sleep(0)` plus a 10s deadline (a stuck task now
+fails as a named assertion instead of hanging until the killer), in **both** copies — the helper is
+duplicated verbatim in `evals/heartbeat_idle_wire.py`, whose four call sites have the same defect.
+With it: 129.9s, kanban green in 5.9s, and the eval still runs clean end to end. Kept as its own
+commit since it is unrelated to #11687 and can be taken or dropped independently.
+
 ## Deliberately not in this PR
 
 - **The relay wire (`gateway/relay/ws_transport.py`, §3 of the connector contract).** Adding a
