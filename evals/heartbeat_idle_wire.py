@@ -65,9 +65,16 @@ async def main(base_poller):
         await release.wait()
         return "wire reply"
 
-    async def drain():
+    async def drain(timeout=10.0):
+        # Yield between rounds: the set is emptied by a done-callback the loop runs via call_soon,
+        # so gather() returning does not mean the set is empty. Bounded so a task that never
+        # finishes fails by name instead of spinning the event loop at 100% CPU.
+        deadline = asyncio.get_running_loop().time() + timeout
         while adapter._background_tasks:
             await asyncio.gather(*list(adapter._background_tasks))
+            await asyncio.sleep(0)
+            assert asyncio.get_running_loop().time() < deadline, (
+                f"background tasks never drained: {adapter._background_tasks!r}")
 
     def snapshot():
         return {"turns": len(received), "queue_depth": runner._queue_depth(key, adapter=adapter),

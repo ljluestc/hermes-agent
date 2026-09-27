@@ -32,9 +32,21 @@ def setup_route(raft=False):
     return runner, adapter, source, build_session_key(source)
 
 
-async def drain(adapter):
+async def drain(adapter, *, timeout=10.0):
+    """Await the adapter's background tasks until the set is empty — yielding, and bounded.
+
+    ``_background_tasks`` is emptied by ``task.add_done_callback(set.discard)``, which the loop runs
+    via ``call_soon``, so the set is still non-empty the instant ``gather`` returns on already-done
+    tasks. Without the explicit yield the ``while`` re-gathers completed tasks forever at 100% CPU,
+    and the deadline turns a task that genuinely never finishes into a named assertion instead of a
+    file that hangs until the suite's 300s killer.
+    """
+    deadline = asyncio.get_running_loop().time() + timeout
     while adapter._background_tasks:
         await asyncio.gather(*list(adapter._background_tasks))
+        await asyncio.sleep(0)  # let the done-callbacks discard finished tasks
+        assert asyncio.get_running_loop().time() < deadline, (
+            f"background tasks never drained: {adapter._background_tasks!r}")
 
 
 @pytest.mark.asyncio
