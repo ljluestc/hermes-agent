@@ -298,6 +298,15 @@ DANGEROUS_PATTERNS = [
     # silently allow DELETE without WHERE.
     (r'\bDELETE\s+FROM\b(?![^\n]*\bWHERE\b)', "SQL DELETE without WHERE"),
     (r'\bTRUNCATE\s+(TABLE)?\s*\w', "SQL TRUNCATE"),
+    # A NOPASSWD sudoers write would otherwise surface as a generic system-file write rule below,
+    # which says nothing about the real risk: a write-capable allowed command (`curl -o`, `tee`,
+    # `cp`) or one that runs code is passwordless root, however narrow it looks (#15028). Must
+    # precede those rules so this description reaches the approval prompt.
+    (rf'^(?=.*\bnopasswd\b)(?=.*(?:\btee\b|>>?\s*["\']?|\b(?:cp|mv|install)\s|\bsed\s+-[^\s]*i)'
+     rf'[^\n]*{_SYSTEM_CONFIG_PATH}sudoers)',
+     "write NOPASSWD sudoers rule (passwordless root if the allowed command can write files or "
+     "run code — curl/wget -o, tee, cp, editors, shells, interpreters; restrict to a root-owned "
+     "wrapper script with fixed arguments)"),
     (rf'>\s*{_SYSTEM_CONFIG_PATH}', "overwrite system config"),
     (r'\bsystemctl\s+(-[^\s]+\s+)*(stop|restart|disable|mask)\b', "stop/restart system service"),
     (r'\bkill\s+-9\s+-1\b', "kill all processes"),

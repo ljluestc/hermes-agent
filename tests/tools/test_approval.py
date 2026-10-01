@@ -1425,7 +1425,7 @@ class TestMacOSPrivateSystemPaths:
 
     def test_private_etc_redirect(self):
         dangerous, _, desc = detect_dangerous_command(
-            "echo 'root ALL=NOPASSWD: ALL' > /private/etc/sudoers"
+            "echo 'Defaults env_reset' > /private/etc/sudoers"
         )
         assert dangerous is True
         assert "system config" in desc.lower()
