@@ -3,6 +3,68 @@ import { type ReactNode, useState } from 'react'
 
 import type { Theme } from '../theme.js'
 
+export type ChevronTone = 'dim' | 'error' | 'label' | 'muted' | 'warn'
+
+const TONE_COLOR: Record<ChevronTone, (t: Theme) => string> = {
+  dim: t => t.color.muted,
+  error: t => t.color.error,
+  label: t => t.color.label,
+  muted: t => t.color.muted,
+  warn: t => t.color.warn
+}
+
+/**
+ * The ▸/▾ header row every collapsible section shares. `onClick(deep)` reports
+ * shift/ctrl so trees can expand-all. `bold` is the section-heading look
+ * (accent title, undimmed muted metadata) used by Accordion; otherwise the
+ * title takes the row tone and the suffix sits apart in a dimmed status color.
+ */
+export function Chevron({
+  bold = false,
+  count,
+  onClick,
+  open,
+  suffix,
+  t,
+  title,
+  tone = 'dim'
+}: {
+  bold?: boolean
+  count?: number
+  onClick: (deep?: boolean) => void
+  open: boolean
+  suffix?: string
+  t: Theme
+  title: string
+  tone?: ChevronTone
+}) {
+  return (
+    <Box onClick={(e: any) => onClick(!!e?.shiftKey || !!e?.ctrlKey)}>
+      <Text color={TONE_COLOR[tone](t)} dim={tone === 'dim'}>
+        <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
+        {bold ? (
+          <Text bold color={t.color.accent}>
+            {title}
+          </Text>
+        ) : (
+          title
+        )}
+        {typeof count === 'number' ? ` (${count})` : ''}
+        {suffix ? (
+          bold ? (
+            ` ${suffix}`
+          ) : (
+            <Text color={t.color.statusFg} dim>
+              {'  '}
+              {suffix}
+            </Text>
+          )
+        ) : null}
+      </Text>
+    </Box>
+  )
+}
+
 /**
  * THE expand/collapse primitive — the session panel's tool/skill sections
  * and widget-app accordions are the same component. Click the header to
@@ -43,14 +105,7 @@ export function Accordion({
 
   return (
     <Box flexDirection="column">
-      <Box onClick={toggle}>
-        <Text color={t.color.accent}>{isOpen ? '▾ ' : '▸ '}</Text>
-        <Text bold color={t.color.accent}>
-          {title}
-        </Text>
-        {typeof count === 'number' ? <Text color={t.color.muted}> ({count})</Text> : null}
-        {suffix ? <Text color={t.color.muted}> {suffix}</Text> : null}
-      </Box>
+      <Chevron bold count={count} onClick={toggle} open={isOpen} suffix={suffix} t={t} title={title} tone="muted" />
 
       {isOpen ? children : null}
     </Box>

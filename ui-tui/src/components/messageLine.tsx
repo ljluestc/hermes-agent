@@ -15,6 +15,7 @@ import { boundedLiveRenderText, compactPreview, isPasteBackedText } from '../lib
 import type { Theme } from '../theme.js'
 import type { ActiveTool, DetailsMode, Msg, SectionVisibility } from '../types.js'
 
+import { Chevron } from './accordion.js'
 import { Md } from './markdown.js'
 import { StreamingMd } from './streamingMarkdown.js'
 import { ToolTrail } from './thinking.js'
@@ -183,14 +184,14 @@ export const MessageLine = memo(function MessageLine({
 
       return (
         <Box flexDirection="column">
-          <Box onClick={() => setSystemOpen(v => !v)}>
-            <Text color={t.color.accent}>{systemOpen ? '▾ ' : '▸ '}</Text>
-            <Text color={t.color.muted}>{firstLine}</Text>
-            <Text color={t.color.muted} dimColor>
-              {' — '}
-              {T.chars(msg.text.length.toLocaleString())}
-            </Text>
-          </Box>
+          <Chevron
+            onClick={() => setSystemOpen(v => !v)}
+            open={systemOpen}
+            suffix={T.chars(msg.text.length.toLocaleString())}
+            t={t}
+            title={firstLine}
+            tone="muted"
+          />
           {systemOpen && <Ansi>{sanitizeAnsiForRender(msg.text)}</Ansi>}
         </Box>
       )
