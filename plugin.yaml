@@ -1,0 +1,10 @@
+name: agent-identity
+version: 0.1.0
+description: Local Ed25519 identity per profile — identity card, signed JSON envelopes, offline verification
+author: ljluestc
+config_schema:
+  signing_key:
+    type: secret
+    env: AGENT_IDENTITY_SIGNING_KEY
+    label: Signing key
+    description: "Ed25519 seed (64 hex chars) from `hermes agent-identity keygen`"
