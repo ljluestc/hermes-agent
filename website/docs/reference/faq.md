@@ -665,6 +665,12 @@ No. Each profile has its own memory store, session database, and skills director
 
 This isolation is also the reason to never run two agents against the *same* profile or Hermes home: both write memory automatically and each loads the other's writes at session start, so their stored state degrades with every session. One agent per profile; for genuinely shared memory across agents, use an [external memory provider](../user-guide/features/memory-providers.md).
 
+### Are my Bots tied to my Nous Portal account or API key? Can I recover them after reinstalling?
+
+No. A desktop [Bot](../user-guide/bot-mode.md) is a local profile directory, `~/.hermes/profiles/<name>/` (`%LOCALAPPDATA%\hermes\profiles\<name>\` on Windows), on the machine that runs it. It is not linked to your Portal account or to an API key, and deleting a key does not delete it.
+
+Whether a Bot survives a reinstall depends on how Hermes was removed. **Uninstall Chat GUI only** and **keep my data** both leave Bots in place; reinstall and they reappear. **Uninstall everything** deletes them, together with the automatic pre-update backups stored in the Hermes home. After that they can only be restored from a `hermes backup` zip (`hermes import <zip>`) or a copy of the directory. See [Backing up, reinstalling, and moving Bots](../user-guide/bot-mode.md#backing-up-reinstalling-and-moving-bots).
+
 ### What happens when I run `hermes update`?
 
 `hermes update` pulls the latest code and reinstalls dependencies **once** (not per-profile). It then syncs updated skills to all profiles automatically. You only need to run `hermes update` once — it covers every profile on the machine.

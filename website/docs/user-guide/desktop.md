@@ -406,7 +406,7 @@ For installations managed by the app, open **Settings → About → Danger zone*
 
 - **Uninstall Chat GUI only** — removes the desktop app and its data; the Hermes agent, your config, and your chats stay. (Same as `hermes uninstall --gui`.)
 - **Uninstall GUI + agent, keep my data** — removes the app and the agent but keeps config, chats, and secrets for a future reinstall. (Same as `hermes uninstall`.)
-- **Uninstall everything** — removes the app, the agent, and all user data. (Same as `hermes uninstall --full`.)
+- **Uninstall everything** — removes the app, the agent, and all user data, including every [Bot](./bot-mode.md) and its credentials. Run `hermes backup` first if you may want them back. (Same as `hermes uninstall --full`.)
 
 The app closes to finish the job (the cleanup runs after it exits so it can remove the running app bundle and its own venv). The agent-removing options are hidden automatically when no local agent is installed.
 

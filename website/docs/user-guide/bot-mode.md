@@ -368,6 +368,36 @@ Clicking a Connections Bot does **not** hop your window onto that machine — st
 
 See [Connecting Desktop to Many Hermes Instances](./multi-connection-desktop.md) for the full multi-connection guide.
 
+## Backing up, reinstalling, and moving Bots
+
+Bots are **local**. Each Bot is the profile directory `~/.hermes/profiles/<name>/` (`%LOCALAPPDATA%\hermes\profiles\<name>\` on Windows) on the machine that owns it. Nothing about a Bot is stored with your Nous Portal account or tied to an API key. Signing in again, or entering a key again, does not bring a Bot back; only its profile directory does. Its messaging tokens (Telegram, Discord, …) and API keys are in that profile's `.env` and `auth.json`.
+
+Each uninstall option in **Settings → About → Danger zone** ([Uninstalling](./desktop.md#uninstalling)) affects Bots differently:
+
+| Option | Bots (profiles, chats, memory, tokens) | Desktop-local state (full group-chat logs, section list, room pins and order) |
+|---|---|---|
+| **Uninstall Chat GUI only** | Kept | Deleted |
+| **Uninstall GUI + agent, keep my data** | Kept | Kept |
+| **Uninstall everything** | **Deleted** | **Deleted** |
+
+After either "keep" option, reinstall the app and your Bots reappear in the roster. A room whose desktop log was deleted is seeded again from the bounded recent history that its gateways hold.
+
+**Before you uninstall everything, or move to a new machine, take a full backup:**
+
+```bash
+hermes backup                    # writes ~/hermes-backup-<timestamp>.zip, outside the Hermes home
+# ...reinstall Hermes...
+hermes import ~/hermes-backup-<timestamp>.zip
+```
+
+The full backup contains every profile, so it includes every Bot together with its `.env` and `auth.json`. Keep the zip private. It does not include browser profiles, so web sign-ins made on the [Bot Screen](./features/bot-screen.md) have to be repeated.
+
+`hermes profile export <bot>` (or **Export profile…** in the desktop) is for **sharing** one Bot. It strips `.env`, `auth.json`, and `bot-desktop/`, so messaging tokens and API keys are not included and have to be entered again after `hermes profile import`. See [`hermes backup` vs `hermes profile export`](../reference/faq.md#hermes-backup-vs-hermes-profile-export).
+
+:::warning Nothing to restore after "Uninstall everything" without a backup
+The automatic pre-update backups and state snapshots live inside the Hermes home, so a full uninstall deletes them along with everything else. Only a `hermes backup` zip saved outside the Hermes home (the default location), or your own copy of the directory, can restore Bots afterwards.
+:::
+
 ## Warm Bot Backends (how many bots run at once)
 
 Each local Bot runs in its own backend process, and Desktop keeps at most **Settings → Advanced → Warm Bot Backends** of them alive at once (default 3, ~60 MB each). Idle backends are reaped after the idle timeout next to that setting (default 10 minutes); the `Hermes backend for profile "<name>" exited (1)` line in `desktop.log` that follows an idle-reap message is that cleanup, not a crash. A Bot you open while every slot is busy waits up to 30 seconds for a slot, then fails with *timed out waiting for a free local slot*.
