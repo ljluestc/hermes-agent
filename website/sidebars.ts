@@ -768,6 +768,7 @@ const sidebars: SidebarsConfig = {
         'guides/cron-troubleshooting',
         'guides/work-with-skills',
         'guides/delegation-patterns',
+        'guides/multi-agent-topic-rooms',
         'guides/agent-email-address',
         'guides/github-pr-review-agent',
         'guides/webhook-github-pr-review',
