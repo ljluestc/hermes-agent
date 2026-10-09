@@ -298,6 +298,18 @@ DANGEROUS_PATTERNS = [
     # silently allow DELETE without WHERE.
     (r'\bDELETE\s+FROM\b(?![^\n]*\bWHERE\b)', "SQL DELETE without WHERE"),
     (r'\bTRUNCATE\s+(TABLE)?\s*\w', "SQL TRUNCATE"),
+    # Ahead of the generic /etc and tee rules (first match wins) so the user and the agent both see what the
+    # rule grants: NOPASSWD for ALL or for a binary that can write any file or spawn a shell is root without a
+    # password (`sudo curl URL -o /etc/cron.d/x`), and "only curl is passwordless" is not a restriction (#15028).
+    # Only an unrestricted grant fires: the command ends its spec (`,`, quote, separator, end) or takes `*`.
+    # Anchored whole-input lookaheads, like the launchctl rule, so long non-matching input is scanned once.
+    (r'\A(?=[\s\S]*(?:/etc/sudoers|\bvisudo\b))(?=[\s\S]*\bnopasswd\s*:' r"[^\n'\"|;&]*?"
+     r'(?:\ball\b|(?<![\w.-])(?:/[\w./-]*/)?'
+     r'(?:curl|wget|tee|cp|mv|dd|install|rsync|tar|sed|awk|gawk|perl|python[23]?(?:\.\d+)?|ruby|node|'
+     r'bash|sh|zsh|dash|vi|vim|nano|less|find|chmod|chown|ln|crontab|systemctl|env|su|docker)'
+     r"(?![\w.-])\s*(?:[,*'\"|;&\n]|$)))",
+     "sudoers NOPASSWD rule for ALL or a file-writing/shell-capable command (e.g. curl, tee, cp) "
+     "is passwordless root; use a root-owned wrapper script with fixed arguments instead"),
     (rf'>\s*{_SYSTEM_CONFIG_PATH}', "overwrite system config"),
     (r'\bsystemctl\s+(-[^\s]+\s+)*(stop|restart|disable|mask)\b', "stop/restart system service"),
     (r'\bkill\s+-9\s+-1\b', "kill all processes"),
