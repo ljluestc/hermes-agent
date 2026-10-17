@@ -39,7 +39,10 @@ _PATTERNS: list[tuple[str, str, str]] = [
 
     # ── Role-play / identity hijack (scraped web content, poisoned context files) ──
     (rf'you\s+are\s+{_FILLER}now\s+(?:a|an|the)\s+', "role_hijack", "context"),
-    (rf'pretend\s+{_FILLER}(you\s+are|to\s+be)\s+', "role_pretend", "context"),
+    # A negated first-person disclaimer ("I do not pretend to be...") is persona text, not a
+    # hijack (#121689). Lookbehinds are fixed-width, so an odd spacing still flags (fail-safe).
+    (rf"(?<!not\s)(?<!never\s)(?<!n['\u2019]t\s)(?<!\bdont\s)\bpretend\s+{_FILLER}(you\s+are|to\s+be)\s+",
+     "role_pretend", "context"),
     (rf'output\s+{_FILLER}(system|initial)\s+prompt', "leak_system_prompt", "context"),
     (rf'(respond|answer|reply)\s+without\s+{_FILLER}(restrictions|limitations|filters|safety)', "remove_filters", "context"),
     (rf'you\s+have\s+been\s+{_FILLER}(updated|upgraded|patched)\s+to', "fake_update", "context"),
