@@ -10,12 +10,14 @@ Hermes connects to WhatsApp through a built-in bridge based on **Baileys**. This
 
 > Run `hermes gateway setup` and pick **WhatsApp** for a guided walk-through.
 
-:::tip Two WhatsApp integrations
+:::tip Three WhatsApp integrations
 This page is for the **Baileys bridge** — quick to set up, personal accounts, no public URL needed, ban risk.
 
 If you're running a real business bot and want stability, see the **[WhatsApp Business Cloud API guide](./whatsapp-cloud.md)** instead. It's the official Meta-supported path: no account ban risk, but requires a Meta Business account and a public webhook URL.
 
-The two adapters can also run in parallel against different phone numbers if you have a reason to.
+The two built-in adapters can also run in parallel against different phone numbers if you have a reason to.
+
+For a personal agent on the official route, Meta's **WhatsApp Agent Platform** (`/agent/v1`) lets you connect Hermes to your own account with an API key from the WhatsApp app: long-poll inbound (no public URL), and only you, the agent's creator, can message it. It ships as the community catalog plugin [`whatsapp-agent-platform`](../features/plugin-catalog.md), not a built-in adapter: `hermes plugins install whatsapp-agent-platform`, then follow its [README](https://github.com/ahtishamdilawar/hermes-whatsapp-agent-platform).
 :::
 
 :::warning Unofficial API — Ban Risk

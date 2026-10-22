@@ -24,6 +24,7 @@ If those constraints don't work for your use case, the [Baileys bridge integrati
 :::tip Which one should I use?
 - **Cloud API (this guide)** — running a real business bot, want stability, fine with the Meta verification + template paperwork
 - **[Baileys bridge](./whatsapp.md)** — personal projects, quick demos, single-user setups, willing to risk the bot phone number's account
+- **WhatsApp Agent Platform** — a personal agent on your own account through Meta's official `/agent/v1` API, no public URL; only you can message it. Community catalog plugin: `hermes plugins install whatsapp-agent-platform` ([README](https://github.com/ahtishamdilawar/hermes-whatsapp-agent-platform))
 :::
 
 ---
