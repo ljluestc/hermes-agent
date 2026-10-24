@@ -558,6 +558,40 @@ Keep secrets, raw logs, tokens, OAuth material, and unrelated transcripts out of
 tests, say so explicitly in `summary` and use `metadata` for the evidence that
 does exist, such as source URLs, issue ids, or manual review steps.
 
+### Verdict and coverage (check-style tasks)
+
+A completed task means the worker did its job. It does not say what the worker
+concluded about its subject. A validator that ran and found the artifact broken
+did its job, and so did a gate that passed after examining half the fields.
+Workers that check something should record both facts as typed fields:
+
+```python
+kanban_complete(
+  summary="Header consistency gate: pass",
+  verdict="pass",                 # pass | fail | unknown; omit when nothing is concluded
+  coverage={
+    "asserted": 78, "skipped": 0, "total": 168,
+    "checks": [{"name": "header_data_consistency", "ran": True, "result": "pass",
+                "compared": ["n_levels", "n_boards"],
+                "uncompared": ["alt_boards", "data_version"]}]
+  }
+)
+```
+
+From the CLI: `hermes kanban complete <id> --summary ... --verdict fail --coverage '<json>'`.
+Both fields are stored on the closing run (`task_runs.verdict` / `task_runs.coverage`).
+They are also returned by `kanban runs --json`, added to the `completed` event payload
+(`verdict`, coverage counts, and `coverage_partial` when anything went unexamined), and
+shown to downstream workers in their parent-handoff context. A declared gap shows up as
+`_coverage_: PARTIAL` with the unexamined fields listed, so a child never reads a partial
+pass as a full one. Unknown keys and impossible counts (`asserted` + `skipped` > `total`)
+are rejected and the task is left untouched.
+
+Retryability uses block kinds, not a verdict. A worker that could not do the job should
+call `kanban_block`: `kind="transient"` for something a retry will fix (like a lock
+collision), or `dependency`/`needs_input` for an unmet precondition that retrying
+won't fix.
+
 ### The worker lifecycle
 
 Every profile that works kanban tasks automatically gets the worker lifecycle — it's injected into the worker's system prompt at spawn (the `KANBAN_GUIDANCE` block), so there is **nothing to install or configure**. It teaches the worker the full lifecycle in **tool calls**, not CLI commands:

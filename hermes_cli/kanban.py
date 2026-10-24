@@ -29,6 +29,7 @@ from hermes_cli.kanban_output import (
     _task_to_dict,
 )
 from hermes_cli.kanban_boards import _dispatch_boards
+from hermes_cli.kanban_db_handoff import normalize_coverage, normalize_verdict, verdict_lines
 from hermes_cli.kanban_ops import (
     _cmd_daemon, _kanban_config, _cmd_dispatch, _cmd_gc, _cmd_repair, _cmd_tail, _cmd_watch,
 )
@@ -42,8 +43,8 @@ def _none_profile(value: str) -> Optional[str]:
     return None if value.lower() in {"none", "-", "null"} else value
 
 
-def _parse_metadata_flag(raw: Optional[str]) -> tuple[Optional[dict], int]:
-    """Parse ``--metadata`` JSON; returns ``(dict|None, rc)`` with rc=2 on error."""
+def _parse_metadata_flag(raw: Optional[str], flag: str = "--metadata") -> tuple[Optional[dict], int]:
+    """Parse a JSON-object flag (``--metadata``, ``--coverage``); returns ``(dict|None, rc)`` with rc=2 on error."""
     if not raw:
         return None, 0
     try:
@@ -51,7 +52,7 @@ def _parse_metadata_flag(raw: Optional[str]) -> tuple[Optional[dict], int]:
         if not isinstance(metadata, dict):
             raise ValueError("must be a JSON object")
     except (ValueError, json.JSONDecodeError) as exc:
-        return None, _err(f"kanban: --metadata: {exc}", 2)
+        return None, _err(f"kanban: {flag}: {exc}", 2)
     return metadata, 0
 
 
@@ -899,14 +900,22 @@ def _cmd_complete(args: argparse.Namespace) -> int:
         return rc
     summary = getattr(args, "summary", None)
     raw_meta = getattr(args, "metadata", None)
+    verdict, raw_coverage = getattr(args, "verdict", None), getattr(args, "coverage", None)
     # Handoff fields are per-run; refuse to copy them across N runs.
-    if len(ids) > 1 and (summary or raw_meta):
-        return _err("kanban: --summary / --metadata are per-task and can't be used "
-                    "with multiple ids (would apply the same handoff to every task). "
-                    "Complete tasks one at a time, or drop the flags for the bulk close.", 2)
+    if len(ids) > 1 and (summary or raw_meta or verdict or raw_coverage):
+        return _err("kanban: --summary / --metadata / --verdict / --coverage are per-task and "
+                    "can't be used with multiple ids (would apply the same handoff to every "
+                    "task). Complete tasks one at a time, or drop the flags for the bulk close.", 2)
     metadata, rc = _parse_metadata_flag(raw_meta)
     if rc:
         return rc
+    coverage, rc = _parse_metadata_flag(raw_coverage, flag="--coverage")
+    if rc:
+        return rc
+    try:
+        verdict, coverage = normalize_verdict(verdict), normalize_coverage(coverage)
+    except ValueError as exc:
+        return _err(f"kanban: {exc}", 2)
     fail_msg: dict[str, str] = {}
     with kbc.connect_closing() as conn:
         def op(tid):
@@ -920,6 +929,7 @@ def _cmd_complete(args: argparse.Namespace) -> int:
             fail_msg[tid] = f"cannot complete {tid} (unknown id or terminal state)"
             try:
                 done = kb.complete_task(conn, tid, result=args.result, summary=summary, metadata=metadata,
+                                        verdict=verdict, coverage=coverage,
                                         expected_run_id=_worker_run_id_for(tid),
                                         force=bool(getattr(args, "force", False)))
             except kb.LiveClaimError:
@@ -1237,6 +1247,8 @@ def _cmd_runs(args: argparse.Namespace) -> int:
         print(f"{i:3d}  {outcome:12s}  {(r.profile or '-'):16s}  {el:>8s}  {_fmt_ts(r.started_at)}")
         if r.summary:
             print(f"     → {r.summary.splitlines()[0][:100]}")
+        for line in verdict_lines(r.verdict, r.coverage):
+            print(f"     {line}")
         if r.error:
             print(f"     ✖ {r.error[:100]}")
     return 0

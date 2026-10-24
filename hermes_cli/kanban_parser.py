@@ -300,6 +300,12 @@ _SPECS = [
         _arg("--metadata",
              help='JSON dict of structured facts (e.g. \'{"changed_files": [...], '
                   '"tests_run": 12}\'). Stored on the closing run.'),
+        _arg("--verdict", choices=("pass", "fail", "unknown"),
+             help="What the run concluded about its subject (omit when it concludes nothing)."),
+        _arg("--coverage",
+             help='JSON object of what the verdict rests on: {"asserted": 78, "skipped": 0, '
+                  '"total": 168, "checks": [{"name": ..., "ran": true, "result": "pass", '
+                  '"compared": [...], "uncompared": [...]}]}.'),
         _arg("--force", action="store_true",
              help="Override the live-claim guard: complete a running, claimed task "
                   "even without owning its run (closes the worker's run)."),

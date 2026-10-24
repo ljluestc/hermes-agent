@@ -697,6 +697,8 @@ class Run:
     summary: Optional[str]
     metadata: Optional[dict]
     error: Optional[str]
+    verdict: Optional[str]
+    coverage: Optional[dict]
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Run:
@@ -704,12 +706,12 @@ class Run:
             **{
                 col: _lossy_text(row[col]) for col in (
                     "task_id", "profile", "step_key", "status", "claim_lock",
-                    "worker_pid", "max_runtime_seconds", "outcome", "summary", "error",
+                    "worker_pid", "max_runtime_seconds", "outcome", "summary", "error", "verdict",
                 )
             },
             **{col: _to_epoch(row[col]) for col in ("claim_expires", "last_heartbeat_at", "ended_at")},
             id=int(row["id"]), started_at=_to_epoch(row["started_at"]) or 0,
-            metadata=_json_or(_lossy_text(row["metadata"])),
+            metadata=_json_or(_lossy_text(row["metadata"])), coverage=_json_or(_lossy_text(row["coverage"])),
         )
 
 
@@ -929,7 +931,11 @@ CREATE TABLE IF NOT EXISTS task_runs (
     --          gave_up | reclaimed | (null while still running)
     summary             TEXT,
     metadata            TEXT,
-    error               TEXT
+    error               TEXT,
+    -- verdict: pass | fail | unknown | NULL (concluded nothing); coverage: JSON
+    -- denominator behind it. See hermes_cli/kanban_db_handoff.py.
+    verdict             TEXT,
+    coverage            TEXT
 );
 
 -- Files attached to a task (PDFs, images, source documents). The blob
@@ -1856,6 +1862,7 @@ def _append_event(
 def _end_run(
     conn: sqlite3.Connection, task_id: str, *, outcome: str, summary: Optional[str] = None,
     error: Optional[str] = None, metadata: Optional[dict] = None, status: Optional[str] = None,
+    verdict: Optional[str] = None, coverage: Optional[dict] = None,
 ) -> Optional[int]:
     """Close the active run (``status`` defaults to ``outcome``) and clear
     ``current_run_id``; None when no run was active (never-claimed task).
@@ -1876,12 +1883,15 @@ def _end_run(
                summary       = ?,
                error         = ?,
                metadata      = ?,
+               verdict       = ?,
+               coverage      = ?,
                ended_at      = ?,
                claim_expires = NULL
          WHERE id = ?
            AND ended_at IS NULL
         """,
-        (status or outcome, outcome, summary, error, _json_or_null(metadata), now, run_id),
+        (status or outcome, outcome, summary, error, _json_or_null(metadata), verdict,
+         _json_or_null(coverage), now, run_id),
     )
     conn.execute("UPDATE tasks SET current_run_id = NULL WHERE id = ?", (task_id,))
     return run_id
@@ -1938,7 +1948,7 @@ def _end_or_synthesize_run(
 def _synthesize_ended_run(
     conn: sqlite3.Connection, task_id: str, *, outcome: str, summary: Optional[str] = None,
     error: Optional[str] = None, metadata: Optional[dict] = None,
-    profile: Any = _UNSET,
+    profile: Any = _UNSET, verdict: Optional[str] = None, coverage: Optional[dict] = None,
 ) -> int:
     """Zero-duration closed run for a terminal transition on a never-claimed
     task, so the handoff fields aren't silently dropped (``_end_run`` is a
@@ -1960,13 +1970,13 @@ def _synthesize_ended_run(
         INSERT INTO task_runs (
             task_id, profile, step_key,
             status, outcome,
-            summary, error, metadata,
+            summary, error, metadata, verdict, coverage,
             started_at, ended_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             task_id, profile, step_key, outcome, outcome, summary, error, _json_or_null(metadata),
-            now, now,
+            verdict, _json_or_null(coverage), now, now,
         ),
     )
     return int(cur.lastrowid or 0)
@@ -2641,6 +2651,7 @@ def complete_task(
     summary: Optional[str] = None, metadata: Optional[dict] = None,
     created_cards: Optional[Iterable[str]] = None, expected_run_id: Optional[int] = None,
     fire_lifecycle_hook: bool = True, force: bool = False,
+    verdict: Optional[str] = None, coverage: Optional[dict] = None,
 ) -> bool:
     """``running|ready|blocked|review -> done``; records ``result``.
 
@@ -2658,7 +2669,11 @@ def complete_task(
     or ``summary``, or a stripped result already stored on the card. Empty or
     whitespace-only evidence raises :class:`EmptyCompletionError` after an
     auditable event. Approving a card out of ``review`` stays exempt.
+    ``verdict`` / ``coverage`` (validated first; ValueError on a bad shape) record what the
+    run concluded and examined: :mod:`hermes_cli.kanban_db_handoff`.
     """
+    from hermes_cli.kanban_db_handoff import completed_event_payload, normalize_coverage, normalize_verdict
+    verdict, coverage = normalize_verdict(verdict), normalize_coverage(coverage)
     now = int(time.time())
     # Cheap pre-check; re-checked inside the txn to close the parent-reopen race.
     if not _parents_satisfied(conn, task_id):
@@ -2713,23 +2728,26 @@ def complete_task(
             _stage_completion_artifacts(conn, task_id, metadata, now)
         run_id = _end_run(
             conn, task_id, outcome="completed", status="done", summary=handoff_summary,
-            metadata=metadata,
+            metadata=metadata, verdict=verdict, coverage=coverage,
         )
         # Never-claimed task: synthesize a run so the handoff fields survive.
-        if run_id is None and (summary or metadata or result or prior_status == "review"):
+        if run_id is None and (summary or metadata or result or verdict or coverage or prior_status == "review"):
             synth_summary, synth_metadata = handoff_summary, metadata
             if prior_status == "review" and not synth_summary and not synth_metadata:
                 synth_summary = _REVIEW_APPROVED_NOTE
                 synth_metadata = {"source_status": "review", "approval": "manual"}
             run_id = _synthesize_ended_run(
                 conn, task_id, outcome="completed", summary=synth_summary, metadata=synth_metadata,
+                verdict=verdict, coverage=coverage,
             )
         event_summary = handoff_summary
         if prior_status == "review" and not event_summary:
             event_summary = _REVIEW_APPROVED_NOTE
         _append_event(
             conn, task_id, "completed",
-            _completed_event_payload(result, event_summary, verified_cards, metadata),
+            completed_event_payload(
+                result, event_summary, verified_cards, metadata, verdict=verdict, coverage=coverage,
+            ),
             run_id=run_id,
         )
     _flag_phantom_prose_refs(conn, task_id, run_id, summary, result, verified_cards)
@@ -2832,31 +2850,6 @@ def _cleaned_artifact_paths(metadata: Any) -> list[str]:
     if not isinstance(raw, (list, tuple)):
         return []
     return [str(p).strip() for p in raw if isinstance(p, str) and str(p).strip()]
-
-
-def _completed_event_payload(
-    result: Optional[str], event_summary: Optional[str], verified_cards: list[str], metadata: Any,
-) -> dict:
-    """``completed`` event payload: first summary line (400 chars) so gateway
-    notifiers / dashboard WS render without a second round-trip; verified
-    cards; and ``metadata["artifacts"]`` promoted so the notifier can upload
-    them as native attachments without fetching the run row."""
-    # Mirror CLI's _show_voice_status: include STT/TTS provider availability so the user can tell at a
-    # glance *why* voice mode isn't working ("STT provider: MISSING ..." is the common case). ``record_key``
-    # mirrors the configured ``voice.record_key`` so the TUI can both bind it (frontend
-    # ``isVoiceToggleKey``) and display it in /voice status — previously the TUI hardcoded Ctrl+B and
-    # ignored the config (#18994).
-    payload: dict = {
-        "result_len": len(result) if result else 0,
-        "summary": _first_line(event_summary, 400) or None,
-    }
-    if verified_cards:
-        payload["verified_cards"] = verified_cards
-    if isinstance(metadata, dict):
-        cleaned = _cleaned_artifact_paths(metadata)
-        if cleaned:
-            payload["artifacts"] = cleaned
-    return payload
 
 
 def _flag_phantom_prose_refs(

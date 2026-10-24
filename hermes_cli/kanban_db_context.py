@@ -15,6 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import hermes_cli.kanban_db as _kb
+from hermes_cli.kanban_db_handoff import verdict_lines
 
 if TYPE_CHECKING:
     from hermes_cli.kanban_db import Attachment, Comment, Task
@@ -148,6 +149,7 @@ def _ctx_prior_attempts(lines: list[str], conn: sqlite3.Connection, task_id: str
             lines.append(_ctx_cap(run.summary))
         if run.error and run.error.strip():
             lines.append(f"_error_: {_ctx_cap(run.error)}")
+        lines.extend(verdict_lines(run.verdict, run.coverage))
         meta_line = _ctx_metadata_line(run.metadata)
         if meta_line:
             lines.append(meta_line)
@@ -188,6 +190,8 @@ def _ctx_parent_results(lines: list[str], conn: sqlite3.Connection, task_id: str
             lines.append(_ctx_cap(pt.result))
         else:
             lines.append("(no result recorded)")
+        if run is not None:
+            lines.extend(verdict_lines(run.verdict, run.coverage))
         meta_line = _ctx_metadata_line(run.metadata) if run is not None else None
         if meta_line:
             lines.append(meta_line)

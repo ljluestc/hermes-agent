@@ -163,6 +163,26 @@ KANBAN_COMPLETE_SCHEMA = _schema(
                 "task in-flight so you can fix the path and retry."
             ),
         },
+        "verdict": {
+            "type": "string",
+            "enum": ["pass", "fail", "unknown"],
+            "description": (
+                "What this run concluded about its SUBJECT, separate from "
+                "whether you finished the job: a validator that ran and "
+                "found the artifact broken completes with verdict='fail'. "
+                "'unknown' = you checked but could not conclude. Omit when "
+                "the task concludes nothing (most non-check work)."
+            ),
+        },
+        "coverage": _prop("object", (
+                "What the verdict rests on, so a pass over half the "
+                "subject is not read as a full pass: {\"asserted\": 78, "
+                "\"skipped\": 0, \"total\": 168, \"checks\": [{\"name\": "
+                "\"header_consistency\", \"ran\": true, \"result\": "
+                "\"pass\", \"compared\": [\"n_levels\"], \"uncompared\": "
+                "[\"data_version\"]}]}. All keys optional; list what you "
+                "did NOT examine honestly — downstream workers see it."
+        )),
     },
     [],
 )

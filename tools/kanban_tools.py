@@ -740,6 +740,9 @@ def _handle_complete(args: dict, **kw) -> str:
     _check(summary or result, "provide at least one of: summary (preferred), result")
     _require_dict_metadata(metadata)
     metadata = _stamp_worker_session_metadata(tid, metadata)
+    # Validate before the goal judge runs: a malformed handoff should not cost a judge call.
+    from hermes_cli.kanban_db_handoff import normalize_coverage, normalize_verdict
+    verdict, coverage = normalize_verdict(args.get("verdict")), normalize_coverage(args.get("coverage"))
     with _board(args.get("board")) as (kb, conn):
         # Goal-mode pre-completion judge gate (Issue #38367). Prevent workers from bypassing the auxiliary
         # judge by calling kanban_complete before acceptance criteria are met. Only enforce when a judge is
@@ -749,6 +752,7 @@ def _handle_complete(args: dict, **kw) -> str:
         try:
             ok = kb.complete_task(
                 conn, tid, result=result, summary=summary, metadata=metadata,
+                verdict=verdict, coverage=coverage,
                 created_cards=created_cards, expected_run_id=_worker_run_id(tid))
         except kb.ArtifactPreservationError as artifact_err:
             # Structured rejection — surface the phantom ids so the worker can retry with a corrected list
