@@ -115,7 +115,13 @@ KANBAN_COMPLETE_SCHEMA = _schema(
                 "Free-form dict of structured facts about this "
                 "attempt — {\"changed_files\": [...], \"tests_run\": 12, "
                 "\"findings\": [...]}. Surfaced to downstream "
-                "workers alongside ``summary``."
+                "workers alongside ``summary``. Reserved keys, validated: "
+                "``verdict`` (pass|fail|unknown) is your conclusion about the "
+                "subject you checked, separate from whether your run worked; "
+                "``coverage`` {asserted, total, skipped?, compared?, "
+                "uncompared?} is how much you actually examined. A check that "
+                "skipped items must report them so \"no findings\" is not read "
+                "as \"no problems\"."
         )),
         "result": _prop("string", (
                 "Short result log line (legacy field, maps to "

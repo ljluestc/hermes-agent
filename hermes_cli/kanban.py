@@ -32,6 +32,7 @@ from hermes_cli.kanban_boards import _dispatch_boards
 from hermes_cli.kanban_ops import (
     _cmd_daemon, _kanban_config, _cmd_dispatch, _cmd_gc, _cmd_repair, _cmd_tail, _cmd_watch,
 )
+from hermes_cli.kanban_outcome import InvalidOutcomeError
 from hermes_cli.kanban_parser import build_parser
 
 
@@ -930,6 +931,9 @@ def _cmd_complete(args: argparse.Namespace) -> int:
             except kb.EmptyCompletionError as empty_err:
                 fail_msg[tid] = (f"cannot complete {tid}: {empty_err}. Pass --result/--summary "
                                  f"describing what was done (an empty completion is not evidence).")
+                return False
+            except InvalidOutcomeError as outcome_err:
+                fail_msg[tid] = f"cannot complete {tid}: {outcome_err}. Fix --metadata and retry."
                 return False
             if not done:
                 # complete_task returns bare False for a dependency refusal too;

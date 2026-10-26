@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from hermes_cli.kanban_outcome import outcome_event_fields, validate_outcome
 from hermes_cli.kanban_workflow import DEFAULT_STATUSES as VALID_STATUSES
 from toolsets import get_toolset_names
 
@@ -2658,7 +2659,11 @@ def complete_task(
     or ``summary``, or a stripped result already stored on the card. Empty or
     whitespace-only evidence raises :class:`EmptyCompletionError` after an
     auditable event. Approving a card out of ``review`` stays exempt.
+    ``metadata.verdict`` / ``metadata.coverage`` are validated first (see
+    :mod:`hermes_cli.kanban_outcome`); a malformed one raises
+    :class:`InvalidOutcomeError` before anything is written.
     """
+    validate_outcome(metadata)
     now = int(time.time())
     # Cheap pre-check; re-checked inside the txn to close the parent-reopen race.
     if not _parents_satisfied(conn, task_id):
@@ -2856,6 +2861,7 @@ def _completed_event_payload(
         cleaned = _cleaned_artifact_paths(metadata)
         if cleaned:
             payload["artifacts"] = cleaned
+    payload.update(outcome_event_fields(metadata))
     return payload
 
 
