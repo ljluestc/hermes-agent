@@ -86,8 +86,8 @@ their own keys and none of them would interoperate (the issue's point about conv
 can be queried (`SELECT … WHERE verdict = 'fail'`). They are validated, so a malformed record is
 refused instead of stored, and they render the same way everywhere.
 
-**Validated up front, nothing half-written.** `complete_task` normalizes both fields before the goal
-gate, the artifact staging, or the write transaction runs. A bad record (an unknown verdict,
+**Validated up front, nothing half-written.** `complete_task` normalizes both fields before the
+parent check, the artifact staging, or the write transaction runs. A bad record (an unknown verdict,
 `asserted + skipped > total`, `uncompared` as a string, invalid JSON, unknown keys) raises `ValueError`.
 The task stays `running`, its run stays open, and no `completed` event is written. The tool turns that
 into a retryable `tool_error`; the CLI exits with rc=2.
