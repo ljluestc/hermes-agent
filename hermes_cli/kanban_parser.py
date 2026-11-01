@@ -303,6 +303,14 @@ _SPECS = [
         _arg("--force", action="store_true",
              help="Override the live-claim guard: complete a running, claimed task "
                   "even without owning its run (closes the worker's run)."),
+        _arg("--verdict", choices=("pass", "fail", "unknown"),
+             help="What this run concluded about its subject. Omit when the run checks "
+                  "nothing (a producer). A failing subject is still a completed run."),
+        _arg("--coverage",
+             help='JSON coverage record: {"asserted": 78, "skipped": 90, "total": 168, '
+                  '"checks": [{"name": "...", "ran": true, "result": "pass", '
+                  '"compared": [...], "uncompared": [...]}]}. Stored on the closing run '
+                  "and shown to downstream tasks so a partial check is never read as a full pass."),
     ], help="Mark one or more tasks done"),
     _cmd("edit", [
         _TASK_ID,

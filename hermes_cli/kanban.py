@@ -29,6 +29,7 @@ from hermes_cli.kanban_output import (
     _task_to_dict,
 )
 from hermes_cli.kanban_boards import _dispatch_boards
+from hermes_cli.kanban_db_verdict import normalize_coverage, render_outcome_lines
 from hermes_cli.kanban_ops import (
     _cmd_daemon, _kanban_config, _cmd_dispatch, _cmd_gc, _cmd_repair, _cmd_tail, _cmd_watch,
 )
@@ -565,6 +566,8 @@ def _cmd_show(args: argparse.Namespace) -> int:
             print(f"  #{r.id:<3} {outcome:<12} @{r.profile or '-'}  {el}  {_fmt_ts(r.started_at)}")
             if r.summary:
                 print(f"        → {r.summary.splitlines()[0][:160]}")
+            for line in render_outcome_lines(r.verdict, r.coverage):
+                print(f"        {line}")
             if r.error:
                 print(f"        ! {r.error.splitlines()[0][:160]}")
     return 0
@@ -899,14 +902,20 @@ def _cmd_complete(args: argparse.Namespace) -> int:
         return rc
     summary = getattr(args, "summary", None)
     raw_meta = getattr(args, "metadata", None)
+    verdict = getattr(args, "verdict", None)
+    raw_coverage = getattr(args, "coverage", None)
     # Handoff fields are per-run; refuse to copy them across N runs.
-    if len(ids) > 1 and (summary or raw_meta):
-        return _err("kanban: --summary / --metadata are per-task and can't be used "
-                    "with multiple ids (would apply the same handoff to every task). "
+    if len(ids) > 1 and (summary or raw_meta or verdict or raw_coverage):
+        return _err("kanban: --summary / --metadata / --verdict / --coverage are per-task and "
+                    "can't be used with multiple ids (would apply the same handoff to every task). "
                     "Complete tasks one at a time, or drop the flags for the bulk close.", 2)
     metadata, rc = _parse_metadata_flag(raw_meta)
     if rc:
         return rc
+    try:
+        coverage = normalize_coverage(raw_coverage)
+    except ValueError as exc:
+        return _err(f"kanban: --coverage: {exc}", 2)
     fail_msg: dict[str, str] = {}
     with kbc.connect_closing() as conn:
         def op(tid):
@@ -921,7 +930,8 @@ def _cmd_complete(args: argparse.Namespace) -> int:
             try:
                 done = kb.complete_task(conn, tid, result=args.result, summary=summary, metadata=metadata,
                                         expected_run_id=_worker_run_id_for(tid),
-                                        force=bool(getattr(args, "force", False)))
+                                        force=bool(getattr(args, "force", False)),
+                                        verdict=verdict, coverage=coverage)
             except kb.LiveClaimError:
                 fail_msg[tid] = (f"cannot complete {tid}: a live worker is running it. Wait for the "
                                  f"worker, `hermes kanban reclaim {tid}` to release it, or re-run with "
@@ -1237,6 +1247,8 @@ def _cmd_runs(args: argparse.Namespace) -> int:
         print(f"{i:3d}  {outcome:12s}  {(r.profile or '-'):16s}  {el:>8s}  {_fmt_ts(r.started_at)}")
         if r.summary:
             print(f"     → {r.summary.splitlines()[0][:100]}")
+        for line in render_outcome_lines(r.verdict, r.coverage):
+            print(f"     {line}")
         if r.error:
             print(f"     ✖ {r.error[:100]}")
     return 0

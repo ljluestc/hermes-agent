@@ -969,6 +969,7 @@ hermes kanban comment <id> "<text>" [--author NAME]
 
 # Bulk verbs — accept multiple ids:
 hermes kanban complete <id>... [--result "..."] [--force]
+                       # single id only: [--summary "..."] [--metadata JSON] [--verdict pass|fail|unknown] [--coverage JSON]
 hermes kanban block <id> "<reason>" [--ids <id>...]
 hermes kanban unblock <id>...
 hermes kanban archive <id>...
@@ -1375,6 +1376,12 @@ Runs are also where **structured handoff** lives. When a worker completes a task
 - `summary` (tool param) / `--summary` (CLI) — human handoff; goes on the run; downstream children see it in their `build_worker_context`.
 - `metadata` (tool param) / `--metadata` (CLI) — free-form JSON dict on the run; children see it serialized alongside the summary.
 - `result` (tool param) / `--result` (CLI) — short log line that goes on the task row (legacy field, kept for back-compat).
+- `verdict` (tool param) / `--verdict` (CLI) — for tasks that **check** a subject: `pass`, `fail`, or `unknown`. A `completed` run only says the worker did its job; the verdict says what it concluded. A validator that finds the artifact bad still completes, with `verdict: fail`. Producers omit it.
+- `coverage` (tool param) / `--coverage` (CLI JSON) — how much was actually examined: `{"asserted": 78, "skipped": 90, "total": 168, "checks": [{"name": "header_data_consistency", "ran": true, "result": "pass", "compared": ["n_levels", "n_boards"], "uncompared": ["alt_boards", "data_version"]}]}`. Every key is optional; with only `checks`, the counts are derived from the list. Malformed records are refused with nothing written.
+
+Verdict and coverage never change routing — children are released exactly as before. They are reporting surfaces for whatever consumes the board: both are stored on the run (`hermes kanban runs --json`), the verdict and the bare `asserted/skipped/total` denominator ride on the `completed` event, and a child's context renders them under the parent's handoff, flagging a partial run and naming every field a check did **not** compare, so `ALL CHECKS PASS` over 78 of 168 checks is never read as a full pass.
+
+Retry intent for non-model workers is already typed: `hermes kanban block <id> --kind transient` (a lock collision; maybe-flaky) is distinct from `--kind dependency` (an unmet precondition that waits on a parent instead of retrying).
 
 Downstream children read the most recent completed run's summary + metadata for each parent. Retrying workers read the prior attempts on their own task (outcome, summary, error) so they don't repeat a path that already failed.
 

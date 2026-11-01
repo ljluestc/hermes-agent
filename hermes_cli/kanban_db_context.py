@@ -15,6 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import hermes_cli.kanban_db as _kb
+from hermes_cli.kanban_db_verdict import render_outcome_lines
 
 if TYPE_CHECKING:
     from hermes_cli.kanban_db import Attachment, Comment, Task
@@ -191,6 +192,8 @@ def _ctx_parent_results(lines: list[str], conn: sqlite3.Connection, task_id: str
         meta_line = _ctx_metadata_line(run.metadata) if run is not None else None
         if meta_line:
             lines.append(meta_line)
+        if run is not None:
+            lines.extend(render_outcome_lines(run.verdict, run.coverage))
         lines.append("")
 
 

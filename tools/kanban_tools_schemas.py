@@ -123,6 +123,23 @@ KANBAN_COMPLETE_SCHEMA = _schema(
                 "possible; this exists for compatibility with "
                 "callers that still set --result on the CLI."
         )),
+        "verdict": {
+            "type": "string",
+            "enum": ["pass", "fail", "unknown"],
+            "description": (
+                "Only for tasks that check or validate a subject: what you concluded "
+                "about it. ``fail`` means the subject is bad (you still did your job, "
+                "so you still complete). Omit when the task produces rather than checks."
+            ),
+        },
+        "coverage": _prop("object", (
+                "With ``verdict``: how much you actually examined, so a partial check "
+                "is never read as a full pass. {\"asserted\": 78, \"skipped\": 90, "
+                "\"total\": 168, \"checks\": [{\"name\": \"header_consistency\", "
+                "\"ran\": true, \"result\": \"pass\", \"compared\": [\"n_levels\"], "
+                "\"uncompared\": [\"data_version\"]}]}. All keys optional; list what "
+                "you did NOT compare honestly."
+        )),
         "created_cards": {
             "type": "array",
             "items": {"type": "string"},
